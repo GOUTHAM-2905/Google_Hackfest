@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: turgon_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_USER: openmetadata_user
+      MYSQL_PASSWORD: openmetadata_password
+      MYSQL_DATABASE: openmetadata_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - turgon_net
+
+  openmetadata-server:
+    image: openmetadata/server:1.3.4
+    container_name: turgon_openmetadata
+    environment:
+      - DB_DRIVER_CLASS=com.mysql.cj.jdbc.Driver
+      - DB_SCHEME=mysql
+      - DB_USE_SSL=false
+      - DB_USER=openmetadata_user
+      - DB_USER_PASSWORD=openmetadata_password
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - OM_DATABASE=openmetadata_db
+      - SERVER_PORT=8585
+      - SERVER_ADMIN_PORT=8586
+      - PIPELINE_SERVICE_CLIENT_ENABLED=false
+      - AUTHENTICATION_PROVIDER=basic
+      - AUTHENTICATION_PUBLIC_KEY=
+      - AUTHORIZER_CLASS_NAME=org.openmetadata.service.security.DefaultAuthorizer
+      - AUTHORIZER_REQUEST_FILTER=org.openmetadata.service.security.JwtFilter
+      - AUTHORIZER_ADMIN_PRINCIPALS=[admin]
+      - AUTHORIZER_INGESTION_PRINCIPALS=[ingestion-bot]
+      - JWT_ISSUER=open-metadata.org
+      - JWT_KEY_ID=Gb389a-9f76-gdjs-a92j-0242bk94356
+    ports:
+      - "8585:8585"
+      - "8586:8586"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - turgon_net
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8585/api/v1/system/config/jwks"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  turgon_net:
+    driver: bridge
